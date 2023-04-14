@@ -38,7 +38,9 @@ def _get_attr_by_link(attribute,interParams):
 	except:
 		try:
 			returnValue=interParams["default"]
-			loger.warning("Unable to get link. If it happens for all requests, this may mean that you're using incorrect interpreter for this attribute. Returning default value.: "+str(attribute))
+			loger.warning(
+				f"Unable to get link. If it happens for all requests, this may mean that you're using incorrect interpreter for this attribute. Returning default value.: {str(attribute)}"
+			)
 			return returnValue
 		except:
 			raise ValueError("Check your configuration of interpreterParameters. It should contain default value")
@@ -50,23 +52,26 @@ def _get_attr_by_link(attribute,interParams):
 	try:
 		returnValue=get_attr_by_link_cache[link][attr]
 	except KeyError:
-		loger.debug("Link missing in cache. I have:"+str(get_attr_by_link_cache))
+		loger.debug(f"Link missing in cache. I have:{get_attr_by_link_cache}")
 		try:
 			r=snow.get(attribute["link"])
-			loger.debug("_get_person_by_name: Results from: '"+str(attribute)+"' show:"+str(json.dumps(r.json(),indent=4)));
+			loger.debug(
+				f"_get_person_by_name: Results from: '{str(attribute)}' show:{json.dumps(r.json(), indent=4)}"
+			);
 			resultJSON=r.json()
 			returnValue=resultJSON["result"][attr]
 		except KeyError as e:
 			try:
-				loger.warning("Using default value for mapping, error"+str(e)+". Attribute was="+str(attribute))
+				loger.warning(
+					f"Using default value for mapping, error{str(e)}. Attribute was={str(attribute)}"
+				)
 				returnValue=interParams["default"]
 			except KeyError:
 				raise ValueError("Check your configuration interpreterParameters should contain default value")
 
-	temp={}
-	temp[attr]=returnValue
+	temp = {attr: returnValue}
 	get_attr_by_link_cache[link]=temp
-	
+
 	return returnValue
 
 def __get_row(attributes,dataRow):
@@ -89,19 +94,19 @@ def ping_get(event,context):
 	return
 
 def annotation_post(event,context):
-	annoReply='[{"annotation:": '+rjson["annotation"]["name"]+', "time": "0", "title": "Snow title"}]'
-	return annoReply
+	return (
+		'[{"annotation:": '
+		+ rjson["annotation"]["name"]
+		+ ', "time": "0", "title": "Snow title"}]'
+	)
 
 def search_post(event,context):
-	response=[]
-	for k,v in queries.items():
-		response.append(k)
-	return response
+	return [k for k, v in queries.items()]
 
 def query_post(received,context):	
 	target_name=received["targets"][0]["target"]
 	target=queries[target_name]
-	loger.debug("My query target is:"+str(target))
+	loger.debug(f"My query target is:{str(target)}")
 
 	snow = requests.Session()
 	snow.headers.update({"Accept": "application/json" })
@@ -109,8 +114,19 @@ def query_post(received,context):
 	loger.debug("My snow filter is:"+target["snowFilter"])
 
 	snow.verify=False
-	loger.info("Starting request to service-now, to "+str(snowUrl+"//api/now/table/"+target["table"]+" params="+target["snowFilter"]))
-	r=snow.get(snowUrl+"//api/now/table/"+target["table"],params=target["snowFilter"])
+	loger.info(
+		"Starting request to service-now, to "
+		+ str(
+			f"{snowUrl}//api/now/table/"
+			+ target["table"]
+			+ " params="
+			+ target["snowFilter"]
+		)
+	)
+	r = snow.get(
+		f"{snowUrl}//api/now/table/" + target["table"],
+		params=target["snowFilter"],
+	)
 	items=r.json()
 
 
@@ -126,7 +142,9 @@ def query_post(received,context):
 
 
 
-	loger.debug("Service-now returned "+ str(r.status_code)+" message in json format:"+json.dumps(items,indent=4,sort_keys=True))
+	loger.debug(
+		f"Service-now returned {str(r.status_code)} message in json format:{json.dumps(items, indent=4, sort_keys=True)}"
+	)
 
 	#For instance
 	#queryReply[0]["columns"]=[{"text": "Number", "type": "string"}, {"text": "Short description", "type": "string"},{"text": "Last update by", "type": "string"}]
@@ -138,7 +156,7 @@ def query_post(received,context):
 	for row in items["result"]:
 		oneResultRow=__get_row(target["attributes"],row)
 		queryReply[0]["rows"].append(oneResultRow)
-		
+
 	queryReply[0]["type"]="table"
 	return queryReply
 

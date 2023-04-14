@@ -23,6 +23,9 @@ def run(handler_class, server_class=HTTPServer, port=8095, address='127.0.0.1', 
 
 
 def MakeSnowRequestHandler(snowParams):
+
+
+
     class SnowRequestsHandler(BaseHTTPRequestHandler, object):
         get_attr_by_link_cache = {}
         lastQueryReply = {}
@@ -52,7 +55,9 @@ def MakeSnowRequestHandler(snowParams):
             except:
                 try:
                     returnValue = interParams["default"]
-                    logging.warning("Unable to get link. If it happens for all requests, this may mean that you're using incorrect interpreter for this attribute. Returning default value.: " + str(attribute))
+                    logging.warning(
+                        f"Unable to get link. If it happens for all requests, this may mean that you're using incorrect interpreter for this attribute. Returning default value.: {str(attribute)}"
+                    )
                     return returnValue
                 except:
                     raise ValueError("Check your configuration of interpreterParameters. It should contain default value")
@@ -64,21 +69,26 @@ def MakeSnowRequestHandler(snowParams):
             try:
                 returnValue = self.get_attr_by_link_cache[link][attr]
             except KeyError:
-                logging.debug("Link missing in cache. I have:" + str(self.get_attr_by_link_cache))
+                logging.debug(
+                    f"Link missing in cache. I have:{str(self.get_attr_by_link_cache)}"
+                )
                 try:
                     r = snow.get(attribute["link"])
-                    logging.debug("_get_person_by_name: Results from: '" + str(attribute) + "' show:" + str(json.dumps(r.json(), indent=4)))
+                    logging.debug(
+                        f"_get_person_by_name: Results from: '{str(attribute)}' show:{json.dumps(r.json(), indent=4)}"
+                    )
                     resultJSON = r.json()
                     returnValue = resultJSON["result"][attr]
                 except KeyError as e:
                     try:
-                        logging.warning("Using default value for mapping, error" + str(e) + ". Attribute was=" + str(attribute))
+                        logging.warning(
+                            f"Using default value for mapping, error{str(e)}. Attribute was={str(attribute)}"
+                        )
                         returnValue = interParams["default"]
                     except KeyError:
                         raise ValueError("Check your configuration interpreterParameters should contain default value")
 
-            temp = {}
-            temp[attr] = returnValue
+            temp = {attr: returnValue}
             self.get_attr_by_link_cache[link] = temp
 
             return returnValue
@@ -98,18 +108,18 @@ def MakeSnowRequestHandler(snowParams):
             return resultRow
 
         def do_GET(self):
-            logging.info("GET" + self.path)
+            logging.info(f"GET{self.path}")
 
             if self.path == "/":
                 self._set_headers()
                 logging.info("Send ping reply")
 
         def do_POST(self):
-            logging.info("POST" + self.path)
+            logging.info(f"POST{self.path}")
             content_len = int(self.headers.getheader('content-length', 0))
             received = self.rfile.read(content_len)
             received = json.loads(received)
-            logging.debug("Client send: " + str(json.dumps(received, indent=4)))
+            logging.debug(f"Client send: {json.dumps(received, indent=4)}")
             if self.path == '/annotation':
                 self._set_headers()
                 try:
@@ -119,18 +129,16 @@ def MakeSnowRequestHandler(snowParams):
                 except ValueError:
                     logging.warning("Received incorrect json")
             elif self.path == "/search":
-                response = []
-                for k, v in self.queries.iteritems():
-                    response.append(k)
+                response = [k for k, v in self.queries.iteritems()]
                 self._set_headers()
                 self.wfile.write(json.dumps(response))
-                logging.debug("Service reply is:" + json.dumps(response))
+                logging.debug(f"Service reply is:{json.dumps(response)}")
 
             elif self.path == '/query':
                 target_name = received["targets"][0]["target"]
                 target_type = received["targets"][0]["type"]
                 target = self.queries[target_name]
-                logging.debug("My query target is:" + str(target))
+                logging.debug(f"My query target is:{str(target)}")
 
                 self._set_headers()
 
@@ -144,26 +152,39 @@ def MakeSnowRequestHandler(snowParams):
                     snow.auth = self.snowAuth
                     logging.debug("My snow filter is:" + target["snowFilter"])
 
-                    logging.info("Starting request to service-now, to " + str(self.snowUrl + "//api/now/table/" + target["table"] + " params=" + target["snowFilter"]))
-                    r = snow.get(self.snowUrl + "//api/now/table/" + target["table"], params=target["snowFilter"])
+                    logging.info(
+                        "Starting request to service-now, to "
+                        + str(
+                            f"{self.snowUrl}//api/now/table/"
+                            + target["table"]
+                            + " params="
+                            + target["snowFilter"]
+                        )
+                    )
+                    r = snow.get(
+                        f"{self.snowUrl}//api/now/table/" + target["table"],
+                        params=target["snowFilter"],
+                    )
                     items = r.json()
 
                     if r.status_code == 401:
                         logging.error("Unauthorized request to service-now instance - check user and password")
                         return
-                    elif r.text == "":
+                    elif not r.text:
                         logging.warning("Empty reply from service-now instance")
                         return
                     elif r.status_code == 400:
                         logging.error("Bad request, service-now returned:" + items["error"]["message"])
                         return
                     # ---------------- Request to service-now done ----------------
-                    logging.debug("Service-now returned " + str(r.status_code) + " message in json format:" + json.dumps(items, indent=4, sort_keys=True))
+                    logging.debug(
+                        f"Service-now returned {r.status_code} message in json format:{json.dumps(items, indent=4, sort_keys=True)}"
+                    )
 
-                    # queryReply[0]["columns"]=[{"text": "Number", "type": "string"}, {"text": "Short description", "type": "string"},{"text": "Last update by", "type": "string"}]
-                    queryReply[0]["columns"] = []
-                    for attr in target["attributes"]:
-                        queryReply[0]["columns"].append({"text": attr["displayName"], "type": "string"})
+                    queryReply[0]["columns"] = [
+                        {"text": attr["displayName"], "type": "string"}
+                        for attr in target["attributes"]
+                    ]
                     queryReply[0]["rows"] = []
                     for row in items["result"]:
                         oneResultRow = self.__get_row(target["attributes"], row)
@@ -175,7 +196,7 @@ def MakeSnowRequestHandler(snowParams):
                     # load from cache
                     queryReply = self.lastQueryReply[target_name]["reply"]
                     cacheAge = now - self.lastQueryReply[target_name]["time"]
-                    logging.info("Reply from cache - " + str(cacheAge) + " seconds old")
+                    logging.info(f"Reply from cache - {str(cacheAge)} seconds old")
 
                 # set table/timeserie as per query - not cached
                 queryReply[0]["type"] = target_type
@@ -192,8 +213,9 @@ def MakeSnowRequestHandler(snowParams):
                 # prepare data - convert python object to json
                 queryReply = json.dumps(queryReply)
 
-                logging.debug("Reply to grafana:" + queryReply)
+                logging.debug(f"Reply to grafana:{queryReply}")
                 self.wfile.write(queryReply)
+
 
     return SnowRequestsHandler
 
